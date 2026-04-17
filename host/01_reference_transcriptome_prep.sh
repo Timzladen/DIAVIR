@@ -60,6 +60,7 @@ emapper.py \
   --cpu 64 \
   -m diamond
 
+#dammit renames the transcripts so the eggnog annotation needs to be renamed as well
 python3 rename-eggnog.py
 
 # 5. Build Salmon index on the cleaned transcriptome
