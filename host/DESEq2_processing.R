@@ -1,3 +1,4 @@
+#this pipeline was used to run sensitivity test and compare results to edgeR
 library(tximport)
 library(readr)
 library(DESeq2)
