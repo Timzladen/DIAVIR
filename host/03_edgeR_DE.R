@@ -148,7 +148,7 @@ cpm_mat <- cpm(y1, normalized.lib.sizes=TRUE)
 }
 
 # =========================
-# RUN for bacteria + diatom
+# RUN for diatom
 # =========================
 for (nm in names(targets)) {
   message("\n=== Running edgeR QL DE for: ", nm, " ===")
@@ -182,7 +182,7 @@ suppressPackageStartupMessages({
 
 de_path   <- file.path(base_path, "DE_edgeR_QL")
 
-# Choose dataset: "bacteria" or "diatom"
+# Choose dataset: "diatom"
 DATASET <- "diatom"
 
 # Load DE result
