@@ -1,3 +1,5 @@
+#This pipeline was used to run the senisitivity analysis with ALDEx2 on the bacterial metatranscriptome.
+
 ####Bacteria ALDEX
 library(tximport)
 library(ALDEx2)
