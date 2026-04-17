@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ==========================================
-# Build MMETSP Pseudo-nitzschia reference,
-# annotate, rename eggNOG IDs, and quantify
-# with Salmon
-# ==========================================
+THREADS=64
+WORKDIR="/DATA/scratch/timtd/transcriptomes/MMETSP/fasta"
+READS_DIR="/DATA/scratch/timtd/trimmed"
 
-# 1. Prepare combined MMETSP reference
-cd /DATA/scratch/timtd/transcriptomes/MMETSP/fasta
+cd "${WORKDIR}"
 
-# Combine FASTAs
+# 1. Combine MMETSP transcriptomes
 cat *.fasta > combined_pn_transcriptome.fasta
 
-# Dereplicate similar transcripts
+# 2. Dereplicate similar transcripts
 conda activate cdhit
 cd-hit-est \
   -i combined_pn_transcriptome.fasta \
@@ -21,64 +18,56 @@ cd-hit-est \
   -c 0.95 \
   -n 10
 
-# 2. Annotate transcriptome
-conda activate dammit
-dammit annotate cleaned_pn_transcriptome.fasta \
-  --busco-group stramenopiles \
-  --n_threads 32
+# 3. Rename transcript IDs and create namemap
+python3 rename_fasta_and_make_namemap.py \
+  cleaned_pn_transcriptome.fasta \
+  cleaned_pn_transcriptome.renamed.fasta \
+  cleaned_pn_transcriptome.namemap.csv
 
+# 4. Run TransDecoder explicitly
+conda activate transdecoder
+TransDecoder.LongOrfs -t cleaned_pn_transcriptome.renamed.fasta
+TransDecoder.Predict  -t cleaned_pn_transcriptome.renamed.fasta
 
-
-#!/bin/bash
-
-# Set paths
-THREADS=64
-DAMMIT_DIR="cleaned_pn_transcriptome.fasta.dammit"
-ORF_FASTA="$DAMMIT_DIR/cleaned_pn_transcriptome.fasta.transdecoder_dir/longest_orfs.pep"
+# 5. Run hmmscan on predicted peptides
+conda activate hmmer
 PFAM_DB="$HOME/dammit_db/Pfam-A.hmm"
-OUTPUT="$DAMMIT_DIR/cleaned_pn_transcriptome.fasta.transdecoder_dir/longest_orfs.pep.pfam.domtblout"
+PEP_FASTA="cleaned_pn_transcriptome.renamed.fasta.transdecoder_dir/longest_orfs.pep"
+PFAM_OUT="cleaned_pn_transcriptome.renamed.fasta.transdecoder_dir/longest_orfs.pep.pfam.domtblout"
 
-# Run hmmscan in parallel
-echo "Running hmmscan with $THREADS threads..."
-hmmscan --cpu $THREADS \
-        --domtblout "$OUTPUT" \
-        -E 1e-5 \
-        "$PFAM_DB" \
-        "$ORF_FASTA"
+hmmscan \
+  --cpu "${THREADS}" \
+  --domtblout "${PFAM_OUT}" \
+  -E 1e-5 \
+  "${PFAM_DB}" \
+  "${PEP_FASTA}"
 
-# Confirm result
-echo "hmmscan complete. Results saved to:"
-echo "$OUTPUT"
-
-
-
-# 3. Run eggNOG on the same cleaned reference
+# 6. Run eggNOG on renamed transcriptome
 conda activate eggnog
 emapper.py \
-  -i cleaned_pn_transcriptome.fasta \
+  -i cleaned_pn_transcriptome.renamed.fasta \
   -o pn_eggnog \
-  --cpu 64 \
+  --cpu "${THREADS}" \
   -m diamond
 
-#dammit renames the transcripts so the eggnog annotation needs to be renamed as well
+# 7. Rename eggNOG query IDs to match renamed transcript IDs
 python3 rename-eggnog.py
 
-# 5. Build Salmon index on the cleaned transcriptome
+# 8. Build Salmon index on renamed transcriptome
 conda activate salmon
 salmon index \
-  -t cleaned_pn_transcriptome.fasta \
-  -i salmon_index_cleaned_pn \
+  -t cleaned_pn_transcriptome.renamed.fasta \
+  -i salmon_index_cleaned_pn_renamed \
   -k 31
 
-# 6. Quantify samples
-READS_DIR="/DATA/scratch/timtd/trimmed"
-OUT_DIR="/DATA/scratch/timtd/transcriptomes/MMETSP/fasta/salmon_quant_renamed"
+# 9. Quantify all samples
+OUT_DIR="${WORKDIR}/salmon_quant_renamed"
 mkdir -p "${OUT_DIR}"
 
 for sample in DIAVIR1 DIAVIR2 DIAVIR3 DIAVIR4 DIAVIR5 DIAVIR6 DIAVIR7 DIAVIR8 DIAVIR9 DIAVIR10 DIAVIR11 DIAVIR12 DIAVIR13
 do
   salmon quant \
-    -i salmon_index_cleaned_pn \
+    -i salmon_index_cleaned_pn_renamed \
     -l A \
     -1 "${READS_DIR}/${sample}_R1.fastq.gz" \
     -2 "${READS_DIR}/${sample}_R2.fastq.gz" \
@@ -86,4 +75,3 @@ do
     --validateMappings \
     -o "${OUT_DIR}/${sample}"
 done
-
