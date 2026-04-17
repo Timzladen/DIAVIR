@@ -184,7 +184,7 @@ de_path   <- file.path(base_path, "DE_edgeR_manualfilt_QL")
 # Choose dataset: "bacteria" or "diatom"
 DATASET <- "bacteria"
 
-# Load DE result
+# Load DE result of choice
 res <- read.csv(file.path(de_path,
           paste0(DATASET, "_VIRUS5_vs_CONTROL5_edgeR_QL.csv")))
 
